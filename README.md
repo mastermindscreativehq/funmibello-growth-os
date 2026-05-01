@@ -382,10 +382,127 @@ curl https://your-app.up.railway.app/api/health
 
 ---
 
-## Phase 2 Plans (Not Yet Built)
+## Phase 2 — Apify Auto Lead Pipeline
+
+Automatically converts scraped Instagram/TikTok comments into classified leads.
+
+### Endpoint
+
+```
+POST /api/apify/ingest-comments
+```
+
+Accepts an array of comment objects (scraped by Apify). For each comment:
+1. Saves it to `social_comments` with classification results
+2. Detects buying intent (HOT / HIGH / MEDIUM / LOW) and fashion interest
+3. If intent is **HOT or HIGH** — creates a new lead (or links to an existing one)
+4. Returns a per-comment summary with suggested replies
+
+**Intent → Lead Score mapping:**
+
+| Intent | Lead Score |
+|--------|-----------|
+| HOT    | 90        |
+| HIGH   | 75        |
+| MEDIUM | 45        |
+| LOW    | 15        |
+
+---
+
+### Test the Apify Ingest Endpoint (PowerShell)
+
+Paste this into PowerShell to send a test batch of 2 comments to your production API:
+
+```powershell
+$body = @(
+  @{
+    platform    = "INSTAGRAM"
+    username    = "styleking_abuja"
+    displayName = "Style King"
+    profileUrl  = "https://instagram.com/styleking_abuja"
+    commentText = "How much is this senator wear? I need one for wedding next week"
+    postUrl     = "https://instagram.com/p/example1"
+    likeCount   = 4
+    publishedAt = "2026-05-01T10:00:00Z"
+    rawPayload  = @{}
+  },
+  @{
+    platform    = "TIKTOK"
+    username    = "abuja_drip"
+    displayName = "Abuja Drip"
+    profileUrl  = "https://tiktok.com/@abuja_drip"
+    commentText = "Send me the catalog. Looking for bespoke for my birthday dinner"
+    postUrl     = "https://tiktok.com/@funmibello/video/example2"
+    likeCount   = 12
+    publishedAt = "2026-05-01T11:30:00Z"
+    rawPayload  = @{}
+  }
+) | ConvertTo-Json -Depth 5
+
+Invoke-RestMethod `
+  -Method POST `
+  -Uri "https://funmibello-growth-os-production.up.railway.app/api/apify/ingest-comments" `
+  -ContentType "application/json" `
+  -Body $body
+```
+
+**To test locally** (server running on port 4000), replace the URI with:
+```
+http://localhost:4000/api/apify/ingest-comments
+```
+
+---
+
+### Expected Response
+
+```json
+{
+  "success": true,
+  "message": "Processed 2 comment(s). 2 new lead(s) created, 0 linked to existing leads.",
+  "data": {
+    "totalReceived": 2,
+    "commentsSaved": 2,
+    "leadsCreated": 2,
+    "leadsLinked": 0,
+    "results": [
+      {
+        "commentId": "cm_xxxx",
+        "username": "styleking_abuja",
+        "commentText": "How much is this senator wear? I need one for wedding next week",
+        "buyingIntent": "HOT",
+        "fashionInterest": "LUXURY_NATIVE",
+        "leadAction": "created_new",
+        "leadId": "cm_yyyy",
+        "suggestedReply": "FB can style you for that occasion. What date is the event..."
+      },
+      {
+        "commentId": "cm_aaaa",
+        "username": "abuja_drip",
+        "commentText": "Send me the catalog. Looking for bespoke for my birthday dinner",
+        "buyingIntent": "HIGH",
+        "fashionInterest": "BESPOKE",
+        "leadAction": "created_new",
+        "leadId": "cm_bbbb",
+        "suggestedReply": "We're glad this caught your eye. Reach out via DM..."
+      }
+    ]
+  }
+}
+```
+
+---
+
+### Validation Rules
+
+- Body must be a JSON array (not an object)
+- Each comment must have `commentText` (string) and `platform` (one of: INSTAGRAM, TIKTOK, TWITTER, FACEBOOK, WHATSAPP, TELEGRAM, MANUAL)
+- Maximum 500 comments per request
+
+---
+
+## Future Plans
 
 - WhatsApp/Telegram bot integration for lead capture
-- Instagram scraper for comment ingestion
 - Admin dashboard (React/Next.js)
 - AI-powered comment classification upgrade (Claude API)
 - Automated follow-up scheduling

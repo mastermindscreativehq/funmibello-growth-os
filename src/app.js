@@ -8,6 +8,7 @@ const leadsRoutes = require('./routes/leads.routes');
 const commentsRoutes = require('./routes/comments.routes');
 const competitorsRoutes = require('./routes/competitors.routes');
 const recommendationsRoutes = require('./routes/recommendations.routes');
+const apifyRoutes = require('./routes/apify.routes');
 
 const app = express();
 
@@ -20,6 +21,7 @@ app.use('/api/leads', leadsRoutes);
 app.use('/api/comments', commentsRoutes);
 app.use('/api/competitors', competitorsRoutes);
 app.use('/api/recommendations', recommendationsRoutes);
+app.use('/api/apify', apifyRoutes);
 
 app.use((req, res) => {
   error(res, `Route ${req.method} ${req.originalUrl} not found`, 404);
