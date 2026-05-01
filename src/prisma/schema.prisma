@@ -1,0 +1,169 @@
+// FUNMI BELLO Growth OS — Prisma Schema
+// Database: Supabase / PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Platform {
+  INSTAGRAM
+  TIKTOK
+  TWITTER
+  FACEBOOK
+  WHATSAPP
+  TELEGRAM
+  MANUAL
+}
+
+enum LeadStatus {
+  NEW
+  QUALIFIED
+  CONTACTED
+  INTERESTED
+  CONVERTED
+  LOST
+}
+
+enum IntentLevel {
+  LOW
+  MEDIUM
+  HIGH
+  HOT
+}
+
+enum InterestCategory {
+  BESPOKE
+  READY_TO_WEAR
+  CAPS
+  ACCESSORIES
+  URBAN_FASHION
+  LUXURY_NATIVE
+  CASUAL_WEAR
+  UNKNOWN
+}
+
+enum RecommendationType {
+  CONTENT
+  LEAD
+  PRODUCT
+  COMPETITOR
+  SALES
+  BRAND_POSITIONING
+}
+
+enum RecommendationStatus {
+  PENDING
+  ACTIONED
+  DISMISSED
+}
+
+// ─── Models ───────────────────────────────────────────────────────────────────
+
+model Lead {
+  id               String           @id @default(cuid())
+  fullName         String?
+  username         String?
+  platform         Platform?
+  platformUserId   String?
+  phone            String?
+  email            String?
+  location         String?
+  gender           String?
+  source           String?
+  interestCategory InterestCategory @default(UNKNOWN)
+  stylePreference  String?
+  budgetRange      String?
+  intentLevel      IntentLevel      @default(LOW)
+  leadScore        Int              @default(0)
+  status           LeadStatus       @default(NEW)
+  lastContactedAt  DateTime?
+  notes            String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  comments         SocialComment[]
+
+  @@map("leads")
+}
+
+model SocialComment {
+  id              String            @id @default(cuid())
+  platform        Platform
+  postUrl         String?
+  postId          String?
+  commentId       String?
+  username        String?
+  displayName     String?
+  profileUrl      String?
+  commentText     String
+  likeCount       Int               @default(0)
+  publishedAt     DateTime?
+  rawPayload      Json?
+  processed       Boolean           @default(false)
+  classification  String?
+  sentiment       String?
+  buyingIntent    IntentLevel?
+  fashionInterest InterestCategory?
+  detectedNeed    String?
+  suggestedReply  String?
+  leadId          String?
+  lead            Lead?             @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@map("social_comments")
+}
+
+model Competitor {
+  id              String             @id @default(cuid())
+  brandName       String
+  instagramHandle String?
+  tiktokHandle    String?
+  location        String?
+  niche           String?
+  notes           String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  signals         CompetitorSignal[]
+
+  @@map("competitors")
+}
+
+model CompetitorSignal {
+  id              String     @id @default(cuid())
+  competitorId    String
+  competitor      Competitor @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+  platform        Platform
+  postUrl         String?
+  caption         String?
+  engagementCount Int        @default(0)
+  commentCount    Int        @default(0)
+  likeCount       Int        @default(0)
+  signalType      String?
+  insight         String?
+  createdAt       DateTime   @default(now())
+
+  @@map("competitor_signals")
+}
+
+model Recommendation {
+  id          String               @id @default(cuid())
+  type        RecommendationType
+  title       String
+  description String
+  priority    Int                  @default(1)
+  source      String?
+  status      RecommendationStatus @default(PENDING)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  @@map("recommendations")
+}
