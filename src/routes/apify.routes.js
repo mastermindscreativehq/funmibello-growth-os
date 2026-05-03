@@ -1,12 +1,17 @@
 // Apify Routes — FUNMI BELLO Growth OS
-const express = require('express');
-const { ingestComments } = require('../controllers/apify.controller');
 
+const express = require('express');
 const router = express.Router();
 
-// POST /api/apify/ingest-comments
-// Accepts an array of scraped comment objects from Apify.
-// Classifies each comment and auto-creates leads for HOT/HIGH intent.
+const {
+  ingestComments,
+  importDataset
+} = require('../controllers/apify.controller');
+
+// Manual ingestion (works already)
 router.post('/ingest-comments', ingestComments);
+
+// 🔥 NEW — Apify dataset import (THIS was missing)
+router.post('/import-dataset', importDataset);
 
 module.exports = router;
