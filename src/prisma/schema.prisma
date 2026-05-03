@@ -6,8 +6,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
@@ -40,6 +41,7 @@ enum IntentLevel {
 
 enum InterestCategory {
   BESPOKE
+  READY_TO_WEARE
   READY_TO_WEAR
   CAPS
   ACCESSORIES
@@ -67,7 +69,7 @@ enum RecommendationStatus {
 // ─── Models ───────────────────────────────────────────────────────────────────
 
 model Lead {
-  id               String           @id @default(cuid())
+  id               String            @id @default(dbgenerated("(gen_random_uuid())::text"))
   fullName         String?
   username         String?
   platform         Platform?
@@ -77,24 +79,25 @@ model Lead {
   location         String?
   gender           String?
   source           String?
-  interestCategory InterestCategory @default(UNKNOWN)
+  interestCategory InterestCategory? @default(UNKNOWN)
   stylePreference  String?
   budgetRange      String?
-  intentLevel      IntentLevel      @default(LOW)
-  leadScore        Int              @default(0)
-  status           LeadStatus       @default(NEW)
-  lastContactedAt  DateTime?
+  intentLevel      IntentLevel?      @default(LOW)
+  leadScore        Int?              @default(0)
+  status           LeadStatus?       @default(NEW)
+  lastContactedAt  DateTime?         @db.Timestamptz(6)
   notes            String?
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  createdAt        DateTime?         @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime?         @default(now()) @updatedAt @db.Timestamptz(6)
 
   comments         SocialComment[]
+  outreachMessages OutreachMessage[]
 
   @@map("leads")
 }
 
 model SocialComment {
-  id              String            @id @default(cuid())
+  id              String            @id @default(dbgenerated("(gen_random_uuid())::text"))
   platform        Platform
   postUrl         String?
   postId          String?
@@ -103,10 +106,10 @@ model SocialComment {
   displayName     String?
   profileUrl      String?
   commentText     String
-  likeCount       Int               @default(0)
-  publishedAt     DateTime?
+  likeCount       Int?              @default(0)
+  publishedAt     DateTime?         @db.Timestamptz(6)
   rawPayload      Json?
-  processed       Boolean           @default(false)
+  processed       Boolean?          @default(false)
   classification  String?
   sentiment       String?
   buyingIntent    IntentLevel?
@@ -114,23 +117,23 @@ model SocialComment {
   detectedNeed    String?
   suggestedReply  String?
   leadId          String?
-  lead            Lead?             @relation(fields: [leadId], references: [id], onDelete: SetNull)
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
+  createdAt       DateTime?         @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime?         @default(now()) @updatedAt @db.Timestamptz(6)
+  lead            Lead?             @relation(fields: [leadId], references: [id], onUpdate: NoAction)
 
   @@map("social_comments")
 }
 
 model Competitor {
-  id              String             @id @default(cuid())
+  id              String             @id @default(dbgenerated("(gen_random_uuid())::text"))
   brandName       String
   instagramHandle String?
   tiktokHandle    String?
   location        String?
   niche           String?
   notes           String?
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
+  createdAt       DateTime?          @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime?          @default(now()) @updatedAt @db.Timestamptz(6)
 
   signals         CompetitorSignal[]
 
@@ -138,32 +141,57 @@ model Competitor {
 }
 
 model CompetitorSignal {
-  id              String     @id @default(cuid())
+  id              String     @id @default(dbgenerated("(gen_random_uuid())::text"))
   competitorId    String
-  competitor      Competitor @relation(fields: [competitorId], references: [id], onDelete: Cascade)
   platform        Platform
   postUrl         String?
   caption         String?
-  engagementCount Int        @default(0)
-  commentCount    Int        @default(0)
-  likeCount       Int        @default(0)
+  engagementCount Int?       @default(0)
+  commentCount    Int?       @default(0)
+  likeCount       Int?       @default(0)
   signalType      String?
   insight         String?
-  createdAt       DateTime   @default(now())
+  createdAt       DateTime?  @default(now()) @db.Timestamptz(6)
+  competitor      Competitor @relation(fields: [competitorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@map("competitor_signals")
 }
 
 model Recommendation {
-  id          String               @id @default(cuid())
+  id          String                @id @default(dbgenerated("(gen_random_uuid())::text"))
   type        RecommendationType
   title       String
   description String
-  priority    Int                  @default(1)
+  priority    Int?                  @default(1)
   source      String?
-  status      RecommendationStatus @default(PENDING)
-  createdAt   DateTime             @default(now())
-  updatedAt   DateTime             @updatedAt
+  status      RecommendationStatus? @default(PENDING)
+  createdAt   DateTime?             @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime?             @default(now()) @updatedAt @db.Timestamptz(6)
 
   @@map("recommendations")
+}
+
+model OutreachMessage {
+  id        String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  leadId    String?   @map("lead_id")
+  platform  String?   @default("INSTAGRAM")
+  username  String?
+  message   String
+  status    String?   @default("PENDING")
+  createdAt DateTime? @default(now()) @db.Timestamptz(6) @map("created_at")
+  sentAt    DateTime? @db.Timestamptz(6) @map("sent_at")
+  lead      Lead?     @relation(fields: [leadId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("outreach_messages")
+}
+
+model OutreachTemplate {
+  id               String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  intentLevel      String    @map("intent_level")
+  interestCategory String?   @map("interest_category")
+  template         String
+  isActive         Boolean?  @default(true) @map("is_active")
+  createdAt        DateTime? @default(now()) @db.Timestamptz(6) @map("created_at")
+
+  @@map("outreach_templates")
 }
