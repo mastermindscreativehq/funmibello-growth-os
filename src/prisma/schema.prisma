@@ -195,3 +195,15 @@ model OutreachTemplate {
 
   @@map("outreach_templates")
 }
+
+model ContentIdea {
+  id        String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  idea      String
+  brand     String?
+  niche     String?
+  audience  String?
+  goal      String?
+  createdAt DateTime? @default(now()) @db.Timestamptz(6)
+
+  @@map("content_ideas")
+}
