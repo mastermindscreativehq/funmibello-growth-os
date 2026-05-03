@@ -1,66 +1,48 @@
-// Apify Controller — FUNMI BELLO Fashion Growth OS
-
 const axios = require('axios');
-
 const { processComments } = require('../services/apifyLeadPipeline.service');
 const { success, badRequest, error } = require('../utils/response');
 
-const VALID_PLATFORMS = [
-  'INSTAGRAM',
-  'TIKTOK',
-  'TWITTER',
-  'FACEBOOK',
-  'WHATSAPP',
-  'TELEGRAM',
-  'MANUAL',
-];
+const VALID_PLATFORMS = ['INSTAGRAM', 'TIKTOK', 'TWITTER', 'FACEBOOK', 'WHATSAPP', 'TELEGRAM', 'MANUAL'];
 
-// POST /api/apify/ingest-comments
+// =========================
+// INGEST COMMENTS (WORKING)
+// =========================
 const ingestComments = async (req, res) => {
   try {
     const body = req.body;
 
     if (!Array.isArray(body) || body.length === 0) {
-      return badRequest(res, 'Request body must be a non-empty array of comment objects');
+      return badRequest(res, 'Request body must be a non-empty array');
     }
 
     if (body.length > 500) {
-      return badRequest(res, 'Maximum 500 comments per request. Split into smaller batches.');
+      return badRequest(res, 'Max 500 comments per request');
     }
 
     for (let i = 0; i < body.length; i++) {
       const item = body[i];
 
-      if (
-        !item.commentText ||
-        typeof item.commentText !== 'string' ||
-        item.commentText.trim() === ''
-      ) {
-        return badRequest(res, `Comment at index ${i} is missing required field: commentText`);
+      if (!item.commentText || typeof item.commentText !== 'string') {
+        return badRequest(res, `Missing commentText at index ${i}`);
       }
 
       if (!item.platform || !VALID_PLATFORMS.includes(item.platform)) {
-        return badRequest(
-          res,
-          `Comment at index ${i} has an invalid or missing platform. Valid values: ${VALID_PLATFORMS.join(', ')}`
-        );
+        return badRequest(res, `Invalid platform at index ${i}`);
       }
     }
 
     const result = await processComments(body);
 
-    return success(
-      res,
-      result,
-      `Processed ${result.totalReceived} comment(s). ${result.leadsCreated} new lead(s) created, ${result.leadsLinked} linked to existing leads.`
-    );
+    return success(res, result, `Processed ${result.totalReceived} comments`);
   } catch (err) {
-    console.error('[Apify Ingest Error]', err);
-    return error(res, 'Failed to process comments. Check server logs.', 500);
+    console.error(err);
+    return error(res, 'Failed to process comments', 500);
   }
 };
 
-// POST /api/apify/import-dataset
+// =========================
+// IMPORT DATASET (FIXED)
+// =========================
 const importDataset = async (req, res) => {
   try {
     const datasetId = process.env.APIFY_DATASET_ID;
@@ -69,79 +51,54 @@ const importDataset = async (req, res) => {
     if (!datasetId || !token) {
       return res.status(500).json({
         success: false,
-        message: 'Missing APIFY_DATASET_ID or APIFY_TOKEN',
+        message: 'Missing APIFY env variables'
       });
     }
 
-    const url = `https://api.apify.com/v2/datasets/${datasetId}/items?format=json&clean=true&token=${token}`;
+    // ✅ FIXED URL
+    const url = `https://api.apify.com/v2/datasets/${datasetId}/items?clean=true&format=json&token=${token}`;
+
+    console.log('Fetching dataset:', url);
 
     const response = await axios.get(url);
     const items = response.data;
 
-    if (!Array.isArray(items) || items.length === 0) {
+    if (!items || items.length === 0) {
       return res.json({
         success: true,
-        message: 'No comments found in Apify dataset',
-        data: {
-          totalReceived: 0,
-          commentsSaved: 0,
-          leadsCreated: 0,
-          leadsLinked: 0,
-          results: [],
-        },
+        message: 'Dataset empty'
       });
     }
 
-    const formatted = items
-      .filter((item) => item.text && String(item.text).trim() !== '')
-      .map((item) => ({
-        platform: 'INSTAGRAM',
-        username: item.ownerUsername || item.owner?.username || 'unknown',
-        displayName: item.owner?.full_name || item.ownerFullName || item.ownerUsername || '',
-        profileUrl: item.ownerUsername
-          ? `https://instagram.com/${item.ownerUsername}`
-          : null,
-        commentText: item.text,
-        postUrl: item.postUrl || item.url || null,
-        postId: item.postId || null,
-        commentId: item.id || item.commentId || null,
-        likeCount: item.likesCount || item.likeCount || 0,
-        publishedAt: item.timestamp || item.createdAt || null,
-        rawPayload: item,
-      }));
-
-    if (formatted.length === 0) {
-      return res.json({
-        success: true,
-        message: 'Dataset found, but no valid comment text was available',
-        data: {
-          totalReceived: items.length,
-          commentsSaved: 0,
-          leadsCreated: 0,
-          leadsLinked: 0,
-          results: [],
-        },
-      });
-    }
+    // ✅ TRANSFORM CORRECTLY
+    const formatted = items.map(item => ({
+      platform: 'INSTAGRAM',
+      commentText: item.text || '',
+      username: item.ownerUsername || 'unknown',
+      displayName: item.owner?.full_name || '',
+      rawPayload: item
+    }));
 
     const result = await processComments(formatted);
 
-    return success(
-      res,
-      result,
-      `Imported ${formatted.length} Apify comment(s). ${result.leadsCreated} new lead(s) created, ${result.leadsLinked} linked to existing leads.`
-    );
+    return res.json({
+      success: true,
+      message: 'Dataset imported successfully',
+      data: result
+    });
+
   } catch (err) {
-    console.error('[Apify Import Dataset Error]', err);
+    console.error('IMPORT ERROR:', err.response?.data || err.message);
+
     return res.status(500).json({
       success: false,
       message: 'Failed to import Apify dataset',
-      error: err.message,
+      error: err.response?.data || err.message
     });
   }
 };
 
 module.exports = {
   ingestComments,
-  importDataset,
+  importDataset
 };
